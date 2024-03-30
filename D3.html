@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>D3.js</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .map-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+
+<body>
+    <div id='map'></div>
+    <div class="map-overlay">
+        <label for="year">Year: </label>
+        <input type="range" id="year" name="year" min="2000" max="2020" value="2000">
+        <span id="year-value">2000</span>
+    </div>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1Ijoiamw0MDQiLCJhIjoiY2x1ZWN4emR3MHpuNTJpcGd6Y245djFiMCJ9.iej5RcteQI30JxjoSwMqWA'; // 替换为你的 Mapbox 访问令牌
+    
+        // 初始化 Mapbox 地图
+        var map = new mapboxgl.Map({
+            container: 'map', // 地图容器 ID
+            style: 'mapbox://styles/mapbox/light-v10', // 地图样式 URL
+            center: [0, 20], // 地图中心位置 [经度, 纬度]
+            zoom: 1 // 初始缩放级别
+        });
+
+        var yearEl = document.getElementById('year');
+        var yearValueEl = document.getElementById('year-value');
+
+        map.on('load', function() {
+            // 地图加载完成后执行的函数
+            d3.csv('data/global-data-on-sustainable-energy.csv').then(function(data) {
+                // Process the data
+                function updateMap(year) {
+                    var filteredData = data.filter(function(d) {
+                        return d.Year == year;
+                    });
+
+                    var geojsonData = {
+                        type: 'FeatureCollection',
+                        features: filteredData.map(function(d) {
+                            return {
+                                type: 'Feature',
+                                properties: {
+                                    access_to_electricity: d['Access to electricity (% of population)']
+                                },
+                                geometry: {
+                                    type: 'Point',
+                                    coordinates: [d.Longitude, d.Latitude]
+                                }
+                            };
+                        })
+                    };
+
+                    if (map.getLayer('electricityAccessLayer')) {
+                        map.removeLayer('electricityAccessLayer');
+                        map.removeSource('electricityAccess');
+                    }
+
+                    map.addSource('electricityAccess', {
+                        type: 'geojson',
+                        data: geojsonData
+                    });
+
+                    map.addLayer({
+                        id: 'electricityAccessLayer',
+                        type: 'circle',
+                        source: 'electricityAccess',
+                        paint: {
+                            'circle-radius': ['interpolate', ['linear'], ['get', 'access_to_electricity'], 0, 4, 100, 8],
+                            'circle-color': ['interpolate', ['linear'], ['get', 'access_to_electricity'], 0, '#f1eef6', 100, '#045a8d']
+                        }
+                    });
+                }
+
+                yearEl.addEventListener('input', function() {
+                    var year = yearEl.value;
+                    yearValueEl.textContent = year;
+                    updateMap(year);
+                });
+
+                updateMap(yearEl.value);
+            });
+        });
+    </script>
+</body>
+</html>
