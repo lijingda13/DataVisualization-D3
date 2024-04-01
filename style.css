@@ -1,25 +1,68 @@
+/* 控制元素的容器样式 */
+.controls-container {
+    display: flex;
+    /* 使用flex布局 */
+    justify-content: space-evenly;
+    /* 子元素间距平均分配 */
+    align-items: flex-start;
+    /* 垂直居中对齐 */
+    padding: 10px;
+    /* 适当的内边距 */
+    margin-bottom: 20px;
+    /* 底部间隙 */
+}
+
+.select-container,
+#slider-container {
+    display: flex;
+    /* 同样使用flex布局确保标签和元素在一行 */
+    align-items: center;
+    /* 垂直居中对齐 */
+}
+
+/* 调整滑动条样式 */
+#year {
+    margin-left: 10px;
+    /* 与标签间的间隙 */
+}
+
+/* 年份值样式 */
+#year-value {
+    margin-left: 10px;
+    /* 与滑动条间的间隙 */
+}
+
 .chart-container {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-around;
+    justify-content: space-evenly;
     align-items: flex-start;
     gap: 20px;
 }
 
-.chart, .map-chart {
-    flex: 1 1 300px;
+.chart {
+    flex: 1;
     margin-top: 20px;
     border: 1px solid #ccc;
     padding: 10px;
     border-radius: 10px;
     background-color: #f9f9f9;
     display: flex;
-    justify-content: center;
+    width: 600px;
+    height: 300px;
+    overflow: hidden;
 }
 
-.map-container, #map {
-    height: 400px;
-    width: calc(100% - 20px);
+.chart-row>h2 {
+    font-size: 1.25em;
+    text-align: center;
+    margin: 10px 0;
+}
+
+.map-container,
+#map {
+    height: 100%;
+    width: 100%;
 }
 
 .tooltip {
@@ -35,15 +78,16 @@
     opacity: 0.9;
 }
 
-.axis-label, .y-axis-label, .slider-label {
-    font-size: 14px;
+.axis-label {
+    font-size: 13px;
 }
 
-.legend, .chart-legend {
+.legend {
     font-size: 12px;
 }
 
-.line-energy, .line-co2 {
+.line-energy,
+.line-co2 {
     fill: none;
     stroke-width: 2px;
 }
