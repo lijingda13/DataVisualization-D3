@@ -61,29 +61,6 @@
 
         const stack = d3.stack().keys(["fossil", "nuclear", "renewables"]);
 
-        const legendContainer = svg.append("g")
-            .attr("class", "legend-container")
-            .attr("transform", `translate(${width},${0})`);
-
-        const legend = legendContainer.selectAll(null)
-            .data(color.domain())
-            .enter().append("g")
-            .attr("class", "legend")
-            .attr("transform", (d, i) => `translate(0,${i * 20})`);
-
-        legend.append("rect")
-            .attr("x", 18)
-            .attr("width", 18)
-            .attr("height", 18)
-            .attr("fill", color);
-
-        legend.append("text")
-            .attr("x", 12)
-            .attr("y", 9)
-            .attr("dy", "0.35em")
-            .attr("text-anchor", "end")
-            .text(d => d);
-
         d3.csv("data/global-data-on-sustainable-energy.csv").then(function (data) {
             const entities = Array.from(new Set(data.map(d => d.Entity)));
             d3.select("#countrySelector")
@@ -144,7 +121,7 @@
                         const percentage = (d[1] - d[0]) * 100; // 百分比
                         const value = d.data[key + "_value"]; // 原始数值（TWh）
                         tooltip.style("display", null)
-                            .html(`Year: ${d.data.year}<br>` +
+                            .html(`year: ${d.data.year}<br>` +
                                 `${key}: ${percentage.toFixed(0)}%<br>` +
                                 `output: ${value.toFixed(2)} TWh`) // 显示百分比和具体数值
                             .style("left", `${event.pageX + 10}px`)
@@ -162,6 +139,29 @@
                 svg.append("g")
                     .attr("class", "axis axis--y")
                     .call(d3.axisLeft(y).ticks(10, "%"));
+
+                const legendContainer = svg.append("g")
+                    .attr("class", "legend-container")
+                    .attr("transform", `translate(${width},${0})`);
+
+                const legend = legendContainer.selectAll(null)
+                    .data(color.domain())
+                    .enter().append("g")
+                    .attr("class", "legend")
+                    .attr("transform", (d, i) => `translate(0,${i * 20})`);
+
+                legend.append("rect")
+                    .attr("x", 18)
+                    .attr("width", 18)
+                    .attr("height", 18)
+                    .attr("fill", color);
+
+                legend.append("text")
+                    .attr("x", 12)
+                    .attr("y", 9)
+                    .attr("dy", "0.35em")
+                    .attr("text-anchor", "end")
+                    .text(d => d);
             }
         });
     </script>

@@ -9,7 +9,6 @@
             margin: 20px;
         }
         svg {
-            background-color: #b7abec;
             display: block;
             margin: 0 auto; /* Center horizontally */
         }
@@ -76,7 +75,7 @@
             const rowConverter = (d) => ({
                 Entity: d.Entity,
                 date: new Date(+d.Year, 0),
-                energy: +d['Renewable energy share in the total final energy consumption (%)'],
+                energy: +d['Energy intensity level of primary energy (MJ/$2017 PPP GDP)'],
                 co2: +d['Value_co2_emissions_kt_by_country']/1000000 // Adjust for your dataset's CO2 column name
             });
 
@@ -121,7 +120,7 @@
             svg.append("text")
                 .attr("class", "y-axis-label")
                 .attr("transform", `translate(${margin.left / 4 + 20}, ${height / 2}) rotate(-90)`)
-                .text("Renewable Energy Share in the Total Final Energy Consumption (%)");
+                .text("Energy intensity level of primary energy");
 
             // Append Y axis label for CO2 Emissions on the right Y axis
             svg.append("text")
