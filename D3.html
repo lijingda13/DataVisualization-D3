@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>D3.js</title>
@@ -7,7 +8,23 @@
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.css' rel='stylesheet' />
     <style>
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+        }
+    </style>
+    <style>
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
         .map-overlay {
             position: absolute;
             bottom: 0;
@@ -19,7 +36,13 @@
 </head>
 
 <body>
-    <div id='map'></div>
+    <div id="controls">
+        <select id="countrySelect">
+            <option value="">Select a country</option>
+            <!-- 在这里动态填充国家选项 -->
+        </select>
+    </div>
+    <div id='map' style='width: 940px; height: 400px;'></div>
     <div class="map-overlay">
         <label for="year">Year: </label>
         <input type="range" id="year" name="year" min="2000" max="2020" value="2000">
@@ -27,7 +50,7 @@
     </div>
     <script>
         mapboxgl.accessToken = 'pk.eyJ1Ijoiamw0MDQiLCJhIjoiY2x1ZWN4emR3MHpuNTJpcGd6Y245djFiMCJ9.iej5RcteQI30JxjoSwMqWA'; // 替换为你的 Mapbox 访问令牌
-    
+
         // 初始化 Mapbox 地图
         var map = new mapboxgl.Map({
             container: 'map', // 地图容器 ID
@@ -39,26 +62,40 @@
         var yearEl = document.getElementById('year');
         var yearValueEl = document.getElementById('year-value');
 
-        map.on('load', function() {
+        map.on('load', function () {
             // 地图加载完成后执行的函数
-            d3.csv('data/global-data-on-sustainable-energy.csv').then(function(data) {
-                // Process the data
-                function updateMap(year) {
-                    var filteredData = data.filter(function(d) {
-                        return d.Year == year;
+            d3.csv('data/global-data-on-sustainable-energy.csv').then(function (data) {
+                // 获取所有独特的 "Entity" 值（即国家名称）
+                var countries = Array.from(new Set(data.map(function (d) { return d.Entity; })));
+
+                // 获取下拉菜单的引用
+                var countrySelect = document.getElementById('countrySelect');
+
+                // 为每个国家创建一个新的下拉菜单选项
+                countries.forEach(function (country) {
+                    var option = new Option(country, country);
+                    countrySelect.appendChild(option);
+                });
+
+                // 定义更新地图的函数
+                function updateMap(country, year) {
+                    // 根据年份和（可选的）国家过滤数据
+                    var filteredData = data.filter(function (d) {
+                        return (!country || d.Entity === country) && d.Year == year;
                     });
 
                     var geojsonData = {
                         type: 'FeatureCollection',
-                        features: filteredData.map(function(d) {
+                        features: filteredData.map(function (d) {
                             return {
                                 type: 'Feature',
                                 properties: {
-                                    access_to_electricity: d['Access to electricity (% of population)']
+                                    // 使用 parseFloat 确保 access_to_electricity 是一个数字
+                                    access_to_electricity: parseFloat(d['Access to electricity (% of population)'])
                                 },
                                 geometry: {
                                     type: 'Point',
-                                    coordinates: [d.Longitude, d.Latitude]
+                                    coordinates: [parseFloat(d.Longitude), parseFloat(d.Latitude)]  // 同样确保坐标也是数字
                                 }
                             };
                         })
@@ -79,21 +116,44 @@
                         type: 'circle',
                         source: 'electricityAccess',
                         paint: {
-                            'circle-radius': ['interpolate', ['linear'], ['get', 'access_to_electricity'], 0, 4, 100, 8],
-                            'circle-color': ['interpolate', ['linear'], ['get', 'access_to_electricity'], 0, '#f1eef6', 100, '#045a8d']
+                            // 动态调整圆点的大小，基于 'access_to_electricity' 属性
+                            'circle-radius': [
+                                'interpolate',
+                                ['linear'],
+                                ['get', 'access_to_electricity'],
+                                0, 1, // 电力获取率为0时，圆点半径为4
+                                100, 8 // 电力获取率为100时，圆点半径为20
+                            ],
+                            // 设置圆点颜色为绿色，并添加透明度
+                            'circle-color': 'rgba(0, 255, 0, 0.5)', // RGBA 格式，这里设置为半透明的绿色
+                            // 为圆点添加灰色框线
+                            'circle-stroke-color': '#808080', // 灰色
+                            'circle-stroke-width': 1 // 框线宽度为1个单位
                         }
                     });
                 }
 
-                yearEl.addEventListener('input', function() {
-                    var year = yearEl.value;
-                    yearValueEl.textContent = year;
-                    updateMap(year);
+                // 监听国家选择下拉菜单的变化
+                countrySelect.addEventListener('change', function () {
+                    var selectedCountry = countrySelect.value || ''; // 如果没有选择则为空字符串
+                    var selectedYear = yearEl.value;
+                    updateMap(selectedCountry, selectedYear);
                 });
 
-                updateMap(yearEl.value);
+                // 监听年份滑动条的变化
+                yearEl.addEventListener('input', function () {
+                    var selectedYear = yearEl.value;
+                    yearValueEl.textContent = selectedYear;
+                    var selectedCountry = countrySelect.value || ''; // 如果没有选择则为空字符串
+                    updateMap(selectedCountry, selectedYear);
+                });
+
+                // 初始化地图，不指定国家，显示所有国家的数据
+                var initialYear = yearEl.value;
+                updateMap('', initialYear); // 传递空字符串作为国家参数
             });
         });
     </script>
 </body>
+
 </html>

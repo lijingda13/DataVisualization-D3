@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Renewable Energy Capacity vs. Population</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .axis-label {
+            font-size: 14px;
+        }
+
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 6px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .slider-label {
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <svg width="560" height="400"></svg>
+    <div id="slider-container">
+        <input type="range" min="2000" max="2020" value="2000" id="year-slider">
+        <p class="slider-label">Year: <span id="year-value">2000</span></p>
+    </div>
+
+    <script>
+        var svg = d3.select("svg"),
+            margin = { top: 20, right: 20, bottom: 60, left: 50 },
+            width = +svg.attr("width") - margin.left - margin.right,
+            height = +svg.attr("height") - margin.top - margin.bottom;
+
+        var tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        // 使用对数比例尺替代线性比例尺
+        var x = d3.scaleLog().range([0, width]).base(10),
+            y = d3.scaleLog().range([height, 0]).base(10),
+            z = d3.scaleLinear().range([4, 20]);
+
+        var g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var updateCircles; // 在全局作用域中声明函数
+
+        d3.csv("data/global-data-on-sustainable-energy.csv", function (d) {
+            // 确保所有值为正，因为对数比例尺不能有零或负值
+            if (+d.Population_total <= 0 || +d["Renewable-electricity-generating-capacity-total"] <= 0) {
+                return null; // 过滤掉人口或可再生能源容量非正数的行
+            }
+            d.Population_total = +d.Population_total;
+            d.renewableCapacity = +d["Renewable-electricity-generating-capacity-total"];
+            d.gdp_total = +d.gdp_total;
+            d.Year = d.Year;
+            return d;
+        }).then(function (data) {
+            data = data.filter(function (d) { return d; }); // 移除非正数人口的数据行
+            x.domain(d3.extent(data, function (d) { return d.Population_total; })).nice();
+            y.domain(d3.extent(data, function (d) { return d.renewableCapacity; })).nice();
+            z.domain(d3.extent(data, function (d) { return d.gdp_total; })).nice();
+
+            g.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x))
+                .append("text")
+                .attr("fill", "#000")
+                .attr("x", width)
+                .attr("y", 35)
+                .attr("text-anchor", "end")
+                .text("Population");
+
+            g.append("g")
+                .call(d3.axisLeft(y))
+                .append("text")
+                .attr("fill", "#000")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -40)
+                .attr("dy", "0.71em")
+                .attr("text-anchor", "end")
+                .text("Renewable Energy Capacity (MW)");
+
+
+            // 在.then回调内部实现updateCircles函数
+            updateCircles = function (year) {
+                var filteredData = data.filter(function (d) {
+                    return d.Year == year;
+                });
+
+                var circles = g.selectAll("circle")
+                    .data(filteredData, function (d) { return d.Entity; });
+
+                circles.enter().append("circle")
+                    .merge(circles)
+                    .attr("r", function (d) { return z(d.gdp_total); })
+                    .attr("cx", function (d) { return x(d.Population_total); })
+                    .attr("cy", function (d) { return y(d.renewableCapacity); })
+                    .style("fill", "#69b3a2")
+                    .style("opacity", "0.7")
+                    .style("stroke", "black")
+                    .on("mouseover", function (event, d) {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", .9);
+                        tooltip.html("Country: " + d.Entity + "<br/> Year: " + d.Year + "<br/> GDP: " + d.gdp_total + "<br/> Population: " + d.Population_total + "<br/> Renewable Capacity: " + d.renewableCapacity)
+                            .style("left", (event.pageX) + "px")
+                            .style("top", (event.pageY - 28) + "px");
+                    })
+                    .on("mouseout", function (d) {
+                        tooltip.transition()
+                            .duration(500)
+                            .style("opacity", 0);
+                    });
+
+                circles.exit().remove();
+            };
+
+            // 初始加载时更新圆圈
+            updateCircles("2000");
+        });
+
+        // 设置滑块事件监听器
+        d3.select("#year-slider").on("input", function () {
+            var year = this.value;
+            d3.select("#year-value").text(year);
+            updateCircles(year); // 调用updateCircles函数更新图表
+        });
+    </script>
+</body>
+
+</html>

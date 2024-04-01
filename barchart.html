@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Sources in Power Production Over Time</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .chart {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            width: 120px;
+            height: auto;
+            padding: 2px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+
+        .axis-label {
+            font-size: 14px;
+        }
+
+        .legend {
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="chart" class="chart"></div>
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+    <select id="countrySelector"></select>
+    <script>
+        const margin = { top: 20, right: 160, bottom: 40, left: 60 },
+            width = 960 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        const tooltip = d3.select("#tooltip");
+
+        const x = d3.scaleBand().rangeRound([0, width]).padding(0.1);
+        const y = d3.scaleLinear().rangeRound([height, 0]);
+        const color = d3.scaleOrdinal().domain(["fossil", "nuclear", "renewables"]).range(["#bebada", "#ffffb3", "#8dd3c7"]);
+
+        const stack = d3.stack().keys(["fossil", "nuclear", "renewables"]);
+
+        const legendContainer = svg.append("g")
+            .attr("class", "legend-container")
+            .attr("transform", `translate(${width},${0})`);
+
+        const legend = legendContainer.selectAll(null)
+            .data(color.domain())
+            .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", (d, i) => `translate(0,${i * 20})`);
+
+        legend.append("rect")
+            .attr("x", 18)
+            .attr("width", 18)
+            .attr("height", 18)
+            .attr("fill", color);
+
+        legend.append("text")
+            .attr("x", 12)
+            .attr("y", 9)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", "end")
+            .text(d => d);
+
+        d3.csv("data/global-data-on-sustainable-energy.csv").then(function (data) {
+            const entities = Array.from(new Set(data.map(d => d.Entity)));
+            d3.select("#countrySelector")
+                .selectAll("option")
+                .data(entities)
+                .enter().append("option")
+                .text(d => d);
+
+            updateChart(entities[0]);
+
+            d3.select("#countrySelector").on("change", function () {
+                updateChart(this.value);
+            });
+
+            function updateChart(selectedEntity) {
+                const filteredData = data.filter(d => d.Entity === selectedEntity && (d["Electricity from fossil fuels (TWh)"] || d["Electricity from nuclear (TWh)"] || d["Electricity from renewables (TWh)"]))
+                    .map(d => ({
+                        year: d.Year,
+                        total: +d["Electricity from fossil fuels (TWh)"] + +d["Electricity from nuclear (TWh)"] + +d["Electricity from renewables (TWh)"],
+                        fossil: +d["Electricity from fossil fuels (TWh)"],
+                        nuclear: +d["Electricity from nuclear (TWh)"],
+                        renewables: +d["Electricity from renewables (TWh)"]
+                    }))
+                    .map(d => ({
+                        year: d.year,
+                        fossil_value: +d.fossil, // 存储原始数值（TWh）
+                        nuclear_value: +d.nuclear, // 存储原始数值（TWh）
+                        renewables_value: +d.renewables, // 存储原始数值（TWh）
+                        fossil: (d.fossil / d.total),
+                        nuclear: (d.nuclear / d.total),
+                        renewables: (d.renewables / d.total)
+                    }));
+
+                const series = stack(filteredData);
+
+                x.domain(filteredData.map(d => d.year));
+                y.domain([0, 1]);
+
+                svg.selectAll(".series").remove();
+                svg.selectAll(".axis").remove();
+
+                const seriesGroup = svg.selectAll(".series")
+                    .data(series)
+                    .enter().append("g")
+                    .attr("class", "series")
+                    .attr("fill", d => color(d.key));
+
+                seriesGroup.selectAll(".bar")
+                    .data(d => d)
+                    .enter().append("rect")
+                    .attr("class", "bar")
+                    .attr("x", d => x(d.data.year))
+                    .attr("y", d => y(d[1]))
+                    .attr("height", d => y(d[0]) - y(d[1]))
+                    .attr("width", x.bandwidth())
+                    .on("mouseover", function (event, d) {
+                        const key = d3.select(this.parentNode).datum().key; // 能源类型：fossil, nuclear, renewables
+                        const percentage = (d[1] - d[0]) * 100; // 百分比
+                        const value = d.data[key + "_value"]; // 原始数值（TWh）
+                        tooltip.style("display", null)
+                            .html(`Year: ${d.data.year}<br>` +
+                                `${key}: ${percentage.toFixed(0)}%<br>` +
+                                `output: ${value.toFixed(2)} TWh`) // 显示百分比和具体数值
+                            .style("left", `${event.pageX + 10}px`)
+                            .style("top", `${event.pageY - 20}px`);
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("display", "none");
+                    });
+
+                svg.append("g")
+                    .attr("class", "axis axis--x")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x));
+
+                svg.append("g")
+                    .attr("class", "axis axis--y")
+                    .call(d3.axisLeft(y).ticks(10, "%"));
+            }
+        });
+    </script>
+</body>
+
+</html>

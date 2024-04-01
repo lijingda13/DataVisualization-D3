@@ -1,0 +1,11 @@
+.container {
+    display: flex; /* 应用 Flexbox */
+    justify-content: space-around; /* 子元素沿主轴均匀分布 */
+    align-items: flex-start; /* 子元素在交叉轴上的起始位置对齐 */
+    padding: 10px; /* 添加一些内边距 */
+    gap: 20px; /* 设置子元素之间的间隙 */
+}
+
+#map, #stackedBarChart {
+    flex: 1; /* 子元素占用可用空间 */
+}
