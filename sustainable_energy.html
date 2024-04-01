@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrated Data Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.7.0/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body>
+    <div class="select-container">
+        <label for="countrySelector">Select Country:</label>
+        <select id="countrySelector"></select>
+    </div>
+    <div id="slider-container">
+        <label for="year">Year: </label>
+        <input type="range" id="year" min="2000" max="2020" value="2000">
+        <span id="year-value">2000</span>
+    </div>
+    <div class="chart-container">
+        <div class="chart">
+            <h2>Energy Sources in Power Production Over Time</h2>
+            <div id="chart1"></div>
+        </div>
+        <div class="chart">
+            <h2>Interactive Energy and CO2 Emissions Line Graph</h2>
+            <div id="chart2"></div>
+        </div>
+        <div class="chart">
+            <div id='map' class="map-container"></div>
+        </div>
+        <div class="chart">
+            <svg width="560" height="400"></svg>
+        </div>
+    </div>
+    <script>
+        const dataPath = "data/global-data-on-sustainable-energy.csv"; // 路径可能需要根据实际情况调整
+        let data;
+
+        d3.csv(dataPath).then(loadedData => {
+            data = loadedData;
+            const entities = Array.from(new Set(data.map(d => d.Entity)));
+            const countrySelector = d3.select("#countrySelector");
+            countrySelector.selectAll("option")
+                .data(entities)
+                .enter().append("option")
+                .text(d => d);
+
+            countrySelector.on("change", function () {
+                updateCharts(this.value);
+            });
+
+            updateCharts(entities[0]); // 初始加载时展示第一个国家的数据
+        });
+
+        function updateCharts(selectedEntity) {
+            updateChartBar(selectedEntity, data);
+            updateChartLine(selectedEntity, data);
+        }
+
+        function updateChartBar(selectedEntity, data) {
+            const margin = { top: 20, right: 160, bottom: 40, left: 60 },
+                width = 960 - margin.left - margin.right,
+                height = 500 - margin.top - margin.bottom;
+
+            const svg = d3.select("#chart1").selectAll("svg").data([null]);
+            const svgEnter = svg.enter().append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+            svgEnter.append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+            const svgMerge = svgEnter.merge(svg);
+            const g = svgMerge.select("g");
+
+            const tooltip = d3.select("body").selectAll(".tooltip").data([null]);
+            tooltip.enter().append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+            const x = d3.scaleBand().rangeRound([0, width]).padding(0.1);
+            const y = d3.scaleLinear().rangeRound([height, 0]);
+            const color = d3.scaleOrdinal().domain(["fossil", "nuclear", "renewables"]).range(["#bebada", "#ffffb3", "#8dd3c7"]);
+            const stack = d3.stack().keys(["fossil", "nuclear", "renewables"]);
+
+            const filteredData = data.filter(d => d.Entity === selectedEntity).map(d => ({
+                year: d.Year,
+                fossil: +d["Electricity from fossil fuels (TWh)"],
+                nuclear: +d["Electricity from nuclear (TWh)"],
+                renewables: +d["Electricity from renewables (TWh)"],
+                total: +d["Electricity from fossil fuels (TWh)"] + +d["Electricity from nuclear (TWh)"] + +d["Electricity from renewables (TWh)"]
+            })).map(d => ({
+                year: d.year,
+                fossil_value: d.fossil,
+                nuclear_value: d.nuclear,
+                renewables_value: d.renewables,
+                fossil: d.fossil / d.total,
+                nuclear: d.nuclear / d.total,
+                renewables: d.renewables / d.total
+            }));
+
+            x.domain(filteredData.map(d => d.year));
+            y.domain([0, 1]);
+
+            g.selectAll(".series").remove();
+            g.selectAll(".axis").remove();
+
+            const seriesGroup = g.selectAll(".series")
+                .data(stack(filteredData))
+                .enter().append("g")
+                .attr("class", "series")
+                .attr("fill", d => color(d.key));
+
+            seriesGroup.selectAll(".bar")
+                .data(d => d)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d.data.year))
+                .attr("y", d => y(d[1]))
+                .attr("height", d => y(d[0]) - y(d[1]))
+                .attr("width", x.bandwidth())
+                .on("mouseover", function (event, d) {
+                    const key = d3.select(this.parentNode).datum().key;
+                    const percentage = (d[1] - d[0]) * 100;
+                    const value = d.data[key + "_value"];
+                    d3.select(".tooltip").transition().duration(200).style("opacity", .9);
+                    d3.select(".tooltip").html(`Year: ${d.data.year}<br>${key}: ${percentage.toFixed(0)}%<br>Output: ${value.toFixed(2)} TWh`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 20) + "px");
+                })
+                .on("mouseout", function () {
+                    d3.select(".tooltip").transition().duration(500).style("opacity", 0);
+                });
+
+            g.append("g")
+                .attr("class", "axis axis--x")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+
+            g.append("g")
+                .attr("class", "axis axis--y")
+                .call(d3.axisLeft(y).ticks(10, "%"));
+
+            const legendContainer = g.append("g")
+                .attr("class", "legend-container")
+                .attr("transform", `translate(${width},${0})`);
+
+            const legend = legendContainer.selectAll(null)
+                .data(color.domain())
+                .enter().append("g")
+                .attr("class", "legend")
+                .attr("transform", (d, i) => `translate(0,${i * 20})`);
+
+            legend.append("rect")
+                .attr("x", 18)
+                .attr("width", 18)
+                .attr("height", 18)
+                .attr("fill", color);
+
+            legend.append("text")
+                .attr("x", 12)
+                .attr("y", 9)
+                .attr("dy", "0.35em")
+                .attr("text-anchor", "end")
+                .text(d => d);
+        }
+
+        function updateChartLine(selectedEntity, data) {
+            const margin = { top: 20, right: 80, bottom: 50, left: 60 },
+                width = 660 - margin.left - margin.right,
+                height = 500 - margin.top - margin.bottom;
+
+            const svg = d3.select("#chart2").selectAll("svg").data([null]);
+            const svgEnter = svg.enter().append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+            svgEnter.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+            const svgMerge = svgEnter.merge(svg);
+            const g = svgMerge.select("g");
+
+            g.selectAll("*").remove(); // Clear previous drawings
+
+            const filteredData = data.filter(d => d.Entity === selectedEntity).map(d => ({
+                Year: +d.Year,
+                EnergyIntensity: d['Energy intensity level of primary energy (MJ/$2017 PPP GDP)'] !== "" ? +d['Energy intensity level of primary energy (MJ/$2017 PPP GDP)'] : undefined,
+                CO2Emissions: d['Value_co2_emissions_kt_by_country'] !== "" ? +d['Value_co2_emissions_kt_by_country'] : undefined
+            }));
+
+            const x = d3.scaleLinear()
+                .domain(d3.extent(filteredData, d => d.Year))
+                .range([0, width]);
+            g.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+
+            const y1 = d3.scaleLinear()
+                .domain([0, d3.max(filteredData, d => +d.EnergyIntensity)])
+                .range([height, 0]);
+            g.append("g")
+                .call(d3.axisLeft(y1));
+
+            const y2 = d3.scaleLinear()
+                .domain([0, d3.max(filteredData, d => +d.CO2Emissions)])
+                .range([height, 0]);
+            g.append("g")
+                .attr("transform", `translate(${width}, 0)`)
+                .call(d3.axisRight(y2));
+
+            g.append("path")
+                .datum(filteredData)
+                .attr("class", "line-energy")
+                .attr("d", d3.line()
+                    .defined(d => !isNaN(d.EnergyIntensity))
+                    .x(d => x(d.Year))
+                    .y(d => y1(d.EnergyIntensity))
+                )
+                .style("stroke", "steelblue");
+
+            g.append("path")
+                .datum(filteredData)
+                .attr("class", "line-co2")
+                .attr("d", d3.line()
+                    .defined(d => !isNaN(d.CO2Emissions))
+                    .x(d => x(d.Year))
+                    .y(d => y2(d.CO2Emissions))
+                )
+                .style("stroke", "orange");
+
+            g.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left + 2)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("Energy Intensity (MJ/$2017 PPP GDP)");
+
+            g.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", width + margin.right - 2)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("CO2 Emissions (metric tons per capita)");
+
+            // Add the tooltip div
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip");
+
+            // Add the points for energy intensity
+            g.selectAll(".dot-energy")
+                .data(filteredData.filter(d => !isNaN(d.EnergyIntensity))) // Filter out undefined values
+                .enter().append("circle")
+                .attr("class", "dot-energy")
+                .attr("cx", d => x(d.Year))
+                .attr("cy", d => y1(d.EnergyIntensity))
+                .attr("r", 5)
+                .attr("fill", "steelblue")
+                .on("mouseover", (event, d) => {
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    tooltip.html(`Year: ${d.Year}<br/>Energy Intensity: ${d.EnergyIntensity.toFixed(2)}`)
+                        .style("left", (event.pageX) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+
+            // Add the points for CO2 emissions
+            g.selectAll(".dot-co2")
+                .data(filteredData.filter(d => !isNaN(d.CO2Emissions))) // Filter out undefined values
+                .enter().append("circle")
+                .attr("class", "dot-co2")
+                .attr("cx", d => x(d.Year))
+                .attr("cy", d => y2(d.CO2Emissions))
+                .attr("r", 5)
+                .attr("fill", "orange")
+                .on("mouseover", (event, d) => {
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    tooltip.html(`Year: ${d.Year}<br/>CO2 Emissions: ${d.CO2Emissions.toFixed(2)}`)
+                        .style("left", (event.pageX) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+            // Add a legend
+            const legend = g.append("g")
+                .attr("class", "chart-legend")
+                .attr("transform", `translate(${width - 120},20)`);
+
+            legend.append("rect")
+                .attr("class", "legend-square")
+                .style("fill", "steelblue")
+                .attr("x", 0)
+                .attr("y", 0);
+
+            legend.append("text")
+                .attr("x", 20)
+                .attr("y", 10)
+                .text("Energy Intensity");
+
+            legend.append("rect")
+                .attr("class", "legend-square")
+                .style("fill", "orange")
+                .attr("x", 0)
+                .attr("y", 20);
+
+            legend.append("text")
+                .attr("x", 20)
+                .attr("y", 30)
+                .text("CO2 Emissions");
+        };
+    </script>
+    <script>
+        // 全局变量用于存储数据
+        var globalData;
+
+        // Mapbox地图初始化
+        mapboxgl.accessToken = 'pk.eyJ1Ijoiamw0MDQiLCJhIjoiY2x1ZWN4emR3MHpuNTJpcGd6Y245djFiMCJ9.iej5RcteQI30JxjoSwMqWA';
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/light-v10',
+            center: [0, 20],
+            zoom: 1
+        });
+
+        // D3图表初始化
+        var svg = d3.select("svg"),
+            margin = { top: 20, right: 20, bottom: 60, left: 50 },
+            width = +svg.attr("width") - margin.left - margin.right,
+            height = +svg.attr("height") - margin.top - margin.bottom;
+
+        var g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+        var tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
+
+        // 对数比例尺
+        var x = d3.scaleLog().range([0, width]).base(10),
+            y = d3.scaleLog().range([height, 0]).base(10),
+            z = d3.scaleLinear().range([4, 20]);
+
+        // 加载并存储原始数据
+        d3.csv("data/global-data-on-sustainable-energy.csv").then(function (data) {
+            globalData = data; // 不对原始数据进行过滤
+
+            // 过滤出有效数据
+            var validData = globalData.filter(function (d) {
+                return +d.Population_total > 0 && +d["Renewable-electricity-generating-capacity-total"] > 0;
+            });
+
+            // D3图表比例尺设置
+            x.domain(d3.extent(validData, function (d) { return +d.Population_total; })).nice();
+            y.domain(d3.extent(validData, function (d) { return +d["Renewable-electricity-generating-capacity-total"]; })).nice();
+            z.domain(d3.extent(validData, function (d) { return +d.gdp_total; })).nice();
+
+            // 绘制D3图表的轴
+            g.append("g").attr("transform", "translate(0," + height + ")").call(d3.axisBottom(x)).append("text").attr("fill", "#000").attr("x", width).attr("y", 35).attr("text-anchor", "end").text("Population");
+            g.append("g").call(d3.axisLeft(y)).append("text").attr("fill", "#000").attr("transform", "rotate(-90)").attr("y", -40).attr("dy", "0.71em").attr("text-anchor", "end").text("Renewable Energy Capacity (MW)");
+
+            // Mapbox地图加载完成后的回调
+            map.on('load', function () {
+                updateMapboxLayer(globalData.filter(d => +d.Year == 2000)); // 使用原始数据，但过滤特定年份
+            });
+
+            // 初始化D3图表
+            var filteredData = validData.filter(function (d) {
+                return +d.Year === 2000;
+            });
+            updateChartScatter(filteredData);
+        });
+
+        // 时间滑动条事件监听器
+        d3.select("#year").on("input", function () {
+            var year = this.value;
+            d3.select("#year-value").text(year);
+            var filteredData = globalData.filter(function (d) {
+                return +d.Year == year && +d.Population_total > 0 && +d["Renewable-electricity-generating-capacity-total"] > 0;
+            });
+
+            updateMapboxLayer(globalData.filter(d => +d.Year == year)); // 更新Mapbox图层，使用原始数据过滤特定年份
+            updateChartScatter(filteredData); // 更新D3图表，使用筛选和验证过的数据
+        });
+
+        function updateMapboxLayer(filteredData) {
+            var geojsonData = {
+                type: 'FeatureCollection',
+                features: filteredData.map(function (d) {
+                    return {
+                        type: 'Feature',
+                        properties: { access_to_electricity: parseFloat(d['Access to electricity (% of population)']) },
+                        geometry: { type: 'Point', coordinates: [parseFloat(d.Longitude), parseFloat(d.Latitude)] }
+                    };
+                })
+            };
+
+            if (map.getLayer('electricityAccessLayer')) {
+                map.removeLayer('electricityAccessLayer');
+                map.removeSource('electricityAccess');
+            }
+
+            map.addSource('electricityAccess', { type: 'geojson', data: geojsonData });
+            map.addLayer({
+                id: 'electricityAccessLayer',
+                type: 'circle',
+                source: 'electricityAccess',
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['get', 'access_to_electricity'], 0, 1, 100, 8],
+                    'circle-color': 'rgba(0, 255, 0, 0.5)',
+                    'circle-stroke-color': '#808080',
+                    'circle-stroke-width': 1
+                }
+            });
+        }
+
+        function updateChartScatter(filteredData) {
+            var circles = g.selectAll("circle").data(filteredData, function (d) { return d.Entity; });
+
+            circles.enter().append("circle")
+                .merge(circles)
+                .attr("r", function (d) { return z(+d.gdp_total); })
+                .attr("cx", function (d) { return x(+d.Population_total); })
+                .attr("cy", function (d) { return y(+d["Renewable-electricity-generating-capacity-total"]); })
+                .style("fill", "#69b3a2")
+                .style("opacity", "0.7")
+                .style("stroke", "black")
+                .on("mouseover", function (event, d) {
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    tooltip.html("Country: " + d.Entity + "<br/> Year: " + d.Year + "<br/> GDP: " + d.gdp_total + "<br/> Population: " + d.Population_total + "<br/> Renewable Capacity: " + d["Renewable-electricity-generating-capacity-total"])
+                        .style("left", (event.pageX) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function (d) {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+
+            circles.exit().remove();
+        }
+    </script>
+</body>
+
+</html>

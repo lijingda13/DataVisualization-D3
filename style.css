@@ -1,0 +1,67 @@
+.chart-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.chart, .map-chart {
+    flex: 1 1 300px;
+    margin-top: 20px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 10px;
+    background-color: #f9f9f9;
+    display: flex;
+    justify-content: center;
+}
+
+.map-container, #map {
+    height: 400px;
+    width: calc(100% - 20px);
+}
+
+.tooltip {
+    position: absolute;
+    text-align: center;
+    width: 120px;
+    padding: 6px;
+    font: 12px sans-serif;
+    background: lightsteelblue;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+.axis-label, .y-axis-label, .slider-label {
+    font-size: 14px;
+}
+
+.legend, .chart-legend {
+    font-size: 12px;
+}
+
+.line-energy, .line-co2 {
+    fill: none;
+    stroke-width: 2px;
+}
+
+.line-energy {
+    stroke: steelblue;
+}
+
+.line-co2 {
+    stroke: orange;
+}
+
+.select-container {
+    margin: 10px;
+}
+
+.legend-square {
+    width: 10px;
+    height: 10px;
+    display: inline-block;
+}

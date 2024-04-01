@@ -83,7 +83,7 @@
         // Read the data
         d3.csv("data/global-data-on-sustainable-energy.csv").then(function (data) {
             // Filter data based on the selected entity
-            const entities = [...new Set(data.map(d => d.Entity))];
+            const entities = Array.from(new Set(data.map(d => d.Entity)));
             const select = d3.select("#chart").insert("select", "svg")
                 .on("change", updateChart);
             select.selectAll("option")
@@ -92,7 +92,7 @@
                 .text(d => d);
 
             // Initial chart display
-            updateChart();
+            updateChart(entities[0]);
 
             function updateChart() {
                 const selectedEntity = select.property("value") || entities[0];
