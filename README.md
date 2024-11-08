@@ -1,6 +1,8 @@
 # Global Renewable Energy Data Visualization
 This visualization provides an integrated view of global energy data, emphasizing renewable energy production, access to electricity, and the relationship between population, GDP, and renewable capacity.
 
+<img width="1512" alt="2024-11-08 17 43 18" src="https://github.com/user-attachments/assets/73bb053a-fc46-4f22-9c51-b5fa82082c89">
+
 ## Features
 - Interactive Charts: D3.js-powered graphs that reflect energy generation trends, GDP, and CO2 emissions.
 - Mapbox Integration: A global map indicating population percentage with access to electricity.
